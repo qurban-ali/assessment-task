@@ -1,4 +1,4 @@
-# IKONIC Interview
+# Assessment Task
 
 ## Time
 The alloted time frame for this task is 2 days.
