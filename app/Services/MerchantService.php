@@ -7,6 +7,7 @@ use App\Models\Affiliate;
 use App\Models\Merchant;
 use App\Models\Order;
 use App\Models\User;
+use Carbon\Carbon;
 
 class MerchantService
 {
@@ -20,7 +21,21 @@ class MerchantService
      */
     public function register(array $data): Merchant
     {
-        // TODO: Complete this method
+        $user = User::create([
+            'domain' => $data['domain'],
+            'name' => $data['name'],
+            'email' => $data['email'],
+            'password' => $data['api_key'],
+            'type' => User::TYPE_MERCHANT,
+        ]);
+
+        $merchant = Merchant::create([
+            'domain' => $data['domain'],
+            'display_name' => $data['name'],
+            'user_id' => $user->id,
+        ]);
+
+        return $merchant->load('user');
     }
 
     /**
@@ -31,7 +46,18 @@ class MerchantService
      */
     public function updateMerchant(User $user, array $data)
     {
-        // TODO: Complete this method
+
+        $user->update([
+            'domain' => $data['domain'],
+            'name' => $data['name'],
+            'email' => $data['email'],
+            'password' => $data['api_key'],
+        ]);
+
+        return $user->merchant()->update([
+            'domain' => $data['domain'],
+            'display_name' => $data['name'],
+        ]);
     }
 
     /**
@@ -43,7 +69,12 @@ class MerchantService
      */
     public function findMerchantByEmail(string $email): ?Merchant
     {
-        // TODO: Complete this method
+        $user = User::where('email', $email)->first();
+
+        if ($user) {
+            return $user->merchant;
+        }
+        return null;
     }
 
     /**
@@ -55,6 +86,49 @@ class MerchantService
      */
     public function payout(Affiliate $affiliate)
     {
-        // TODO: Complete this method
+
+        $unpaidOrders = Order::where('affiliate_id', $affiliate->id)
+            ->where('payout_status', Order::STATUS_UNPAID)
+            ->get();
+
+        foreach ($unpaidOrders as $order) {
+            PayoutOrderJob::dispatch($order);
+        }
+    }
+
+    /**
+     * Get useful order statistics for the specified merchant within the date range.
+     *
+     * @param Merchant $merchant
+     * @param Carbon $fromDate
+     * @param Carbon $toDate
+     * @return array
+     */
+    public function getOrderStatistics(Merchant $merchant, Carbon $fromDate, Carbon $toDate): array
+    {
+        $totalOrders = $merchant->orders()
+            ->whereBetween('created_at', [$fromDate, $toDate])
+            ->count();
+
+        $revenue = $merchant->orders()
+            ->whereBetween('created_at', [$fromDate, $toDate])
+            ->sum('subtotal');
+
+        $commissionOwed = $merchant->orders()
+            ->where('payout_status', Order::STATUS_UNPAID)
+            ->whereBetween('created_at', [$fromDate, $toDate])
+            ->sum('commission_owed');
+
+        $commissionOwedNoAffliated = $merchant->orders()
+            ->where('payout_status', Order::STATUS_UNPAID)
+            ->whereNull('affiliate_id')
+            ->whereBetween('created_at', [$fromDate, $toDate])
+            ->sum('commission_owed');
+            
+        return [
+            'count' => $totalOrders,
+            'commissions_owed' => $commissionOwed - $commissionOwedNoAffliated,
+            'revenue' => $revenue,
+        ];
     }
 }

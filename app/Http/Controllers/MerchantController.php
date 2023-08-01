@@ -11,8 +11,9 @@ use Illuminate\Support\Carbon;
 class MerchantController extends Controller
 {
     public function __construct(
-        MerchantService $merchantService
-    ) {}
+        protected MerchantService $merchantService
+    ) {
+    }
 
     /**
      * Useful order statistics for the merchant API.
@@ -22,6 +23,16 @@ class MerchantController extends Controller
      */
     public function orderStats(Request $request): JsonResponse
     {
-        // TODO: Complete this method
+        $fromDate = $request->from;
+        $toDate = $request->to;
+
+        $fromDate = Carbon::parse($fromDate);
+        $toDate = Carbon::parse($toDate);
+
+        $merchant = Merchant::with('orders')->first();
+        
+        $orderStats = $this->merchantService->getOrderStatistics($merchant, $fromDate, $toDate);
+
+        return response()->json($orderStats);
     }
 }

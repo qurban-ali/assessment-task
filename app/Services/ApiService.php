@@ -37,6 +37,9 @@ class ApiService
      */
     public function sendPayout(string $email, float $amount)
     {
-        //
+        return [
+            'email' => $email,
+            'amount' => $amount
+        ];
     }
 }
